@@ -1,0 +1,38 @@
+name: Security Scan and Push
+
+on:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  build-and-scan:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Étape 1 : Connexion à Docker Hub (Indispensable pour le push)
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Étape 2 : Build de l'image
+      - name: Build Docker image
+        run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/devsecure-api:latest .
+
+      # Étape 3 : Scan de sécurité (Trivy)
+      - name: Run Trivy scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ secrets.DOCKERHUB_USERNAME }}/devsecure-api:latest'
+          format: 'table'
+          exit-code: '1' # Bloque le push si l'image est vulnérable
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'
+
+      # Étape 4 : Push uniquement si le scan est OK
+      - name: Push to Docker Hub
+        run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/devsecure-api:latest
